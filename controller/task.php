@@ -213,6 +213,109 @@
             exit();
         }
     }
+    else if(array_key_exists("page", $_GET)) {
+
+        $page = $_GET["page"];
+
+        if($page === '' || !is_numeric($page)) {
+            $res = new Response();
+            $res->setHttpStatusCode(400);
+            $res->setSuccess(false);
+            $res->addMessage("Page not be blank or must be a number");
+            $res->send();
+            exit();
+        }
+
+        if($_SERVER['REQUEST_METHOD'] == 'GET') {
+
+            $limitPerPage = 1;
+
+            try {
+
+                $query = $readDB->prepare("SELECT COUNT(id) as totalNoOfTasks from tbltasks");
+                $query->execute();
+
+                $row = $query->fetch(PDO::FETCH_ASSOC);
+                $tasksCount = intval($row['totalNoOfTasks']);
+
+                $numOfPages = ceil($tasksCount/$limitPerPage) === 0 ? 1 : ceil($tasksCount/$limitPerPage);
+
+                if($page > $numOfPages || $page === 0) {
+                    $res = new Response();
+                    $res->setHttpStatusCode(404);
+                    $res->setSuccess(false);
+                    $res->addMessage("Page not found");
+                    $res->send();
+                    exit();
+                }
+
+                $offset = ($page === 1 ? 0 : ($limitPerPage*($page-1)));
+
+                $query = $readDB->prepare("SELECT id, title, description, DATE_FORMAT(deadline, '%d/%m/%Y %H:%i') AS deadline, completed FROM tbltasks limit :limitPerPage offset :offset");
+                $query->bindParam(':limitPerPage', $limitPerPage, PDO::PARAM_INT);
+                $query->bindParam(':offset', $offset, PDO::PARAM_INT);
+                $query->execute();
+    
+                $rowCount = $query->rowCount();
+    
+                if($rowCount <= 0 || $rowCount === 0) {
+                    $res = new Response();
+                    $res->setHttpStatusCode(404);
+                    $res->setSuccess(false);
+                    $res->addMessage("No tasks found");
+                    $res->send();
+                    exit();
+                }
+    
+                $taskArray = array();
+    
+                while($row = $query->fetch(PDO::FETCH_ASSOC)) {
+                    $task = new Task($row['id'], $row['title'], $row['description'], $row['deadline'], $row['completed']);
+                    $taskArray[] = $task->returnTaskArray();
+                }
+    
+                $returnData = array();
+                $returnData['rows_returned'] = $rowCount;
+                $returnData['total_rows'] = $tasksCount;
+                $returnData['total_pages'] = $numOfPages;
+                $returnData['has_next_page'] = ($page < $numOfPages ? true : false);
+                $returnData['has_previous_page'] = ($page > 1 ? true : false);
+                $returnData['tasks'] = $taskArray;
+    
+                $res = new Response();
+                $res->setHttpStatusCode(200);
+                $res->setSuccess(true);
+                $res->toCache(true);
+                $res->addMessage('Task found');
+                $res->setData($returnData);
+                $res->send();
+                exit();
+    
+            } catch (TaskException $ex) {
+                $res = new Response();
+                $res->setHttpStatusCode(500);
+                $res->setSuccess(false);
+                $res->addMessage($ex->getMessage());
+                $res->send();
+                exit();
+            } catch (PDOException $ex) {
+                error_log("Internal server error - ".$ex, 0);
+                $res = new Response();
+                $res->setHttpStatusCode(500);
+                $res->setSuccess(false);
+                $res->addMessage("Internal server error");
+                $res->send();
+                exit();
+            }
+        } else {
+            $res = new Response();
+            $res->setHttpStatusCode(405);
+            $res->setSuccess(false);
+            $res->addMessage("Request method not allowed.");
+            $res->send();
+            exit();
+        }
+    }
     else if(empty($_GET)) {
         
         if($_SERVER['REQUEST_METHOD'] == 'GET') {
