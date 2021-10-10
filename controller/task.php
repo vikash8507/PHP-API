@@ -317,7 +317,6 @@
         }
     }
     else if(empty($_GET)) {
-        
         if($_SERVER['REQUEST_METHOD'] == 'GET') {
 
             try {
@@ -373,7 +372,117 @@
             }
 
         } else if($_SERVER['REQUEST_METHOD'] == 'POST') {
-            echo "Hello";
+            try{
+
+                if($_SERVER['CONTENT_TYPE'] !== 'application/json') {
+                    $res = new Response();
+                    $res->setHttpStatusCode(400);
+                    $res->setSuccess(false);
+                    $res->addMessage('Content type header is not set to JSON');
+                    $res->send();
+                    exit();
+                }
+
+                $rawPOSTData = file_get_contents("php://input");
+
+                if(!$jsonData = json_decode($rawPOSTData)) {
+                    $res = new Response();
+                    $res->setHttpStatusCode(500);
+                    $res->setSuccess(false);
+                    $res->addMessage("Request body is not valid JSON");
+                    $res->send();
+                    exit();
+                }
+
+                if(!isset($jsonData->title) || !isset($jsonData->completed)) {
+                    $res = new Response();
+                    $res->setHttpStatusCode(500);
+                    $res->setSuccess(false);
+                    (!isset($jsonData->title) ? $res->addMessage("Title must be required") : false);
+                    (!isset($jsonData->completed) ? $res->addMessage("Completed must be required") : false);
+                    $res->send();
+                    exit();
+                }
+
+                $newTask = new Task(null, $jsonData->title, (isset($jsonData->description) ? $jsonData->description : null), (isset($jsonData->deadline) ? $jsonData->deadline : null), $jsonData->completed);
+
+                $title = $newTask->getTitle();
+                $description = $newTask->getDescription();
+                $deadline = $newTask->getDeadline();
+                $completed = $newTask->getCompleted();
+
+                $query = $writeDB->prepare("INSERT INTO tbltasks (title, description, deadline, completed) VALUES (:title, :description, STR_TO_DATE(:deadline, '%d/%m/%Y %H:%i'), :completed)");
+                $query->bindParam(':title', $title, PDO::PARAM_STR);
+                $query->bindParam(':description', $description, PDO::PARAM_STR);
+                $query->bindParam(':deadline', $deadline, PDO::PARAM_STR);
+                $query->bindParam(':completed', $completed, PDO::PARAM_STR);
+                $query->execute();
+
+                $rowCount = $query->rowCount();
+
+                if($rowCount == 0) {
+                    $res = new Response();
+                    $res->setHttpStatusCode(500);
+                    $res->setSuccess(false);
+                    $res->addMessage('Failed to create task. Please try again later.');
+                    $res->send();
+                    exit();
+                }
+
+                $newTaskId = $writeDB->lastInsertId();
+
+                $query = $readDB->prepare("SELECT id, title, description, DATE_FORMAT(deadline, '%d/%m/%Y %H:%i') AS deadline, completed FROM tbltasks WHERE id = :newTaskId");
+                $query->bindParam(':newTaskId',$newTaskId, PDO::PARAM_INT);
+                $query->execute();
+
+                $rowCount = $query->rowCount();
+
+                if($rowCount == 0) {
+                    $res = new Response();
+                    $res->setHttpStatusCode(500);
+                    $res->setSuccess(false);
+                    $res->addMessage('Failed to retrive task after creation.');
+                    $res->send();
+                    exit();
+                }
+
+                $taskArray = array();
+    
+                while($row = $query->fetch(PDO::FETCH_ASSOC)) {
+                    $task = new Task($row['id'], $row['title'], $row['description'], $row['deadline'], $row['completed']);
+                    $taskArray[] = $task->returnTaskArray();
+                }
+    
+                $returnData = array();
+                $returnData['rows_returned'] = $rowCount;
+                $returnData['tasks'] = $taskArray;
+    
+                $res = new Response();
+                $res->setHttpStatusCode(201);
+                $res->setSuccess(true);
+                $res->toCache(true);
+                $res->addMessage('Task found');
+                $res->setData($returnData);
+                $res->send();
+                exit();
+
+
+            } catch (TaskException $ex) {
+                $res = new Response();
+                $res->setHttpStatusCode(500);
+                $res->setSuccess(false);
+                $res->addMessage($ex->getMessage());
+                $res->send();
+                exit();
+            } catch (PDOException $ex) {
+                error_log("Internal server error - ".$ex, 0);
+                $res = new Response();
+                $res->setHttpStatusCode(500);
+                $res->setSuccess(false);
+                $res->addMessage("Internal server error".$ex);
+                $res->send();
+                exit();
+            }
         } else {
             $res = new Response();
             $res->setHttpStatusCode(405);
@@ -382,7 +491,6 @@
             $res->send();
             exit();
         }
-
     }
     else {
         $res = new Response();
@@ -392,5 +500,4 @@
         $res->send();
         exit();
     }
-
 ?>

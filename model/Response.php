@@ -17,7 +17,7 @@
         }
 
         public function addMessage($message) {
-            $this->_messages = $message;
+            $this->_messages[] = $message;
         }
 
         public function toCache($toCache) {
