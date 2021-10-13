@@ -1,5 +1,10 @@
 php_flag display_errors on
 
+SetEnvIf Authorization .+ HTTP_AUTHORIZATION=$0
+
+Options -Indexes
+
+
 RewriteEngine On
 RewriteCond %{REQUEST_FILENAME} !-d
 RewriteCond %{REQUEST_FILENAME} !-f
@@ -11,3 +16,5 @@ RewriteRule ^tasks/complete$ controller/task.php?completed=Y [L]
 RewriteRule ^tasks/incomplete$ controller/task.php?completed=N [L]
 
 RewriteRule ^users/$ controller/user.php [L]
+
+RewriteRule ^sessions$ controller/sessions.php      [L]    # Handle login requests
