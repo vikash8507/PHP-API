@@ -16,9 +16,66 @@ try {
     exit();
 }
 
-if(array_key_exists("sessionid", $_GET)) {
+if(array_key_exists("sessionId", $_GET)) {
+
+    $sessionId = $_GET['sessionId'];
+
+    if($sessionId == "" || !is_numeric($sessionId)) {
+        $res = new Response();
+        $res->setHttpStatusCode(400);
+        $res->setSuccess(false);
+        ($sessionId == '' ? $res->addMessage("Session ID cannot be blank") : false);
+        (!is_numeric($sessionId) ? $res->addMessage("Session ID must be numeric") : false);
+        $res->send();
+        exit();
+    }
+
+    if(!isset($_SERVER['HTTP_AUTHORIZATION']) || strlen($_SERVER['HTTP_AUTHORIZATION']) < 1) {
+        $res = new Response();
+        $res->setHttpStatusCode(400);
+        $res->setSuccess(false);
+        (strlen($_SERVER['HTTP_AUTHORIZATION']) < 1 ? $res->addMessage("Authorization header can not be blank.") : false);
+        (!isset($_SERVER['HTTP_AUTHORIZATION']) ? $res->addMessage("Authorization header required.") : false);
+        $res->send();
+        exit();
+    }
+    
+    $accesstoken = $_SERVER['HTTP_AUTHORIZATION'];
 
     if($_SERVER['REQUEST_METHOD'] === 'DELETE') {
+        try{
+            $query = $writeDB->prepare("DELETE FROM tblsessions WHERE id = :sessionId AND accesstoken = :accesstoken");
+            $query->bindParam(':sessionId', $sessionId, PDO::PARAM_INT);
+            $query->bindParam(':accesstoken',$accesstoken, PDO::PARAM_STR);
+            $query->execute();
+            $rowCount = $query->rowCount();
+            if($rowCount === 0) {
+                $response = new Response();
+                $response->setHttpStatusCode(400);
+                $response->setSuccess(false);
+                $response->addMessage("Failed to log out of this session using access token provided");
+                $response->send();
+                exit;
+            }
+
+            $returnData = array();
+            $returnData['session_id'] = intval($sessionId);
+    
+            $response = new Response();
+            $response->setHttpStatusCode(200);
+            $response->setSuccess(true);
+            $response->setData($returnData);
+            $response->send();
+            exit();
+        }
+        catch (PDOException $ex) {
+            $response = new Response();
+            $response->setHttpStatusCode(500);
+            $response->setSuccess(false);
+            $response->addMessage("There was an issue logging out - please try again".$ex);
+            $response->send();
+            exit;
+        }
 
     }
     else if ($_SERVER['REQUEST_METHOD'] === 'PATCH') {

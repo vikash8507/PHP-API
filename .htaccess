@@ -17,4 +17,5 @@ RewriteRule ^tasks/incomplete$ controller/task.php?completed=N [L]
 
 RewriteRule ^users/$ controller/user.php [L]
 
-RewriteRule ^sessions$ controller/sessions.php      [L]    # Handle login requests
+RewriteRule ^sessions$ controller/sessions.php [L]    # Handle login requests
+RewriteRule ^sessions/([0-9]+)$ controller/sessions.php?sessionId=$1 [L]
