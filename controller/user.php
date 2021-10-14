@@ -120,9 +120,7 @@ try {
     $res->setData($returnData);
     $res->send();
     exit();
-
-
-
+    
 }
 catch (PDOException $ex) {
     error_log("Database query error - ".$ex, 0);
